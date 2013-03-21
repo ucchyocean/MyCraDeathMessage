@@ -271,8 +271,9 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
     private YamlConfiguration loadDefaultMessages() {
 
         YamlConfiguration messages = new YamlConfiguration();
+        JarFile jarFile = null;
         try {
-            JarFile jarFile = new JarFile(getFile());
+            jarFile = new JarFile(getFile());
             ZipEntry zipEntry = jarFile.getEntry("messages.yml");
             InputStream inputStream = jarFile.getInputStream(zipEntry);
             BufferedReader reader =
@@ -289,6 +290,14 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
             }
         } catch (IOException e) {
             e.printStackTrace();
+        } finally {
+            if ( jarFile != null ) {
+                try {
+                    jarFile.close();
+                } catch (IOException e) {
+                    // do nothing.
+                }
+            }
         }
 
         return messages;
