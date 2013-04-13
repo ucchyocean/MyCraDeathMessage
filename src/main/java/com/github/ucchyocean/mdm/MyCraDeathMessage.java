@@ -20,6 +20,7 @@ import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Arrow;
+import org.bukkit.entity.EnderPearl;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -173,6 +174,10 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
                         deathMessage = getMessage("dispenser");
                     }
                 }
+                // エンダーパールのテレポート時のダメージ
+                else if (killer instanceof EnderPearl) {
+                    deathMessage = getMessage("enderpearl");
+                }
                 // 投げたポーションや雪玉など
                 else if (killer instanceof Projectile) {
                     // 投げたプレイヤー取得
@@ -255,7 +260,7 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
         //       DamageCause を設定する必要がある。
 
         // killコマンドではないなら、用は無いので、終了する。
-        if ( !(event.getMessage().equalsIgnoreCase("/kill")) ) {
+        if ( !(event.getMessage().toLowerCase().startsWith("/kill")) ) {
             return;
         }
 
