@@ -126,8 +126,6 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
         // 死亡メッセージ
         String deathMessage = event.getDeathMessage();
 
-        System.out.println("original : " + deathMessage); // デバッグ
-
         // ダメージイベントを受けずに死んだ 死因不明
         if (cause == null) {
             deathMessage = getMessage("unknown"); // Unknown
