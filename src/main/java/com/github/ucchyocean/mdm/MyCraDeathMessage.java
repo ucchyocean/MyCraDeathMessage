@@ -255,7 +255,7 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
         //       DamageCause を設定する必要がある。
 
         // killコマンドではないなら、用は無いので、終了する。
-        if ( !(event.getMessage().equalsIgnoreCase("/kill")) ) {
+        if ( !(event.getMessage().toLowerCase().startsWith("/kill")) ) {
             return;
         }
 
