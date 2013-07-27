@@ -1,18 +1,12 @@
 /*
- * @author     ucchy
+ * @author     tsuttsu305, ucchy
  * @license    GPLv3
  * @copyright  Copyright ucchy 2013
  * このソースコードは、tsuttsu305氏のリポジトリからフォークさせていただきました。感謝。
  */
 package com.github.ucchyocean.mdm;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.jar.JarFile;
-import java.util.zip.ZipEntry;
 
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -37,6 +31,8 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -89,12 +85,12 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
         // 設定の取得
         FileConfiguration config = getConfig();
 
-        loggingDeathMessage = config.getBoolean("loggingDeathMessage", false);
+        loggingDeathMessage = config.getBoolean("loggingDeathMessage", true);
         suppressDeathMessage = config.getBoolean("suppressDeathMessage", false);
         prefixWorld = config.getBoolean("prefixWorld", true);
 
         // メッセージのデフォルトを、Jarの中から読み込む
-        defaultMessages = loadDefaultMessages();
+        defaultMessages = Utility.loadYamlFromJar(getFile(), "messages.yml");
     }
 
     /**
@@ -113,6 +109,37 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
     }
 
     /**
+     * プレイヤーがサーバーに参加したときに呼び出されるメソッド
+     * @param event プレイヤー参加イベント
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPlayerJoin(PlayerJoinEvent event) {
+
+        // メッセージを設定する
+        // 初参加なら、初参加メッセージを流す
+        String message;
+        if ( event.getPlayer().hasPlayedBefore() )
+            message = getMessage("server_join").replace("%p", event.getPlayer().getName());
+        else
+            message = getMessage("server_join_first").replace("%p", event.getPlayer().getName());
+
+        event.setJoinMessage(Utility.replaceColorCode(message));
+
+    }
+
+    /**
+     * プレイヤーがサーバーから退出したときに呼び出されるメソッド
+     * @param event プレイヤー退出イベント
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPlayerQuit(PlayerQuitEvent event) {
+
+        // メッセージを設定する
+        event.setQuitMessage(Utility.replaceColorCode(
+                getMessage("server_quit").replace("%p", event.getPlayer().getName())));
+    }
+
+    /**
      * プレイヤーが死亡したときに呼び出されるメソッド
      * @param event プレイヤー死亡イベント
      */
@@ -121,53 +148,40 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
 
         // プレイヤーとプレイヤーが最後に受けたダメージイベントを取得
         Player deader = event.getEntity();
-        final EntityDamageEvent cause = event.getEntity().getLastDamageCause();
+        Player killer = deader.getKiller();
+        final EntityDamageEvent damageEvent = deader.getLastDamageCause();
 
         // 死亡メッセージ
         String deathMessage = event.getDeathMessage();
 
         // ダメージイベントを受けずに死んだ 死因不明
-        if (cause == null) {
+        if (damageEvent == null) {
             deathMessage = getMessage("unknown"); // Unknown
         }
         // ダメージイベントあり 原因によってメッセージ変更
         else {
             // ダメージイベントがEntityDamageByEntityEvent(エンティティが原因のダメージイベント)かどうかチェック
-            if (cause instanceof EntityDamageByEntityEvent) {
+            if (damageEvent instanceof EntityDamageByEntityEvent) {
                 // EntityDamageByEventのgetDamagerメソッドから原因となったエンティティを取得
-                Entity killer = ((EntityDamageByEntityEvent) cause).getDamager();
+                Entity damager = ((EntityDamageByEntityEvent) damageEvent).getDamager();
 
-                // エンティティの型チェック 特殊な表示の仕方が必要
-                if (killer instanceof Player) {
-                    // 倒したプレイヤー名取得
-                    Player killerP = (Player)killer;
-                    //killerが持ってたアイテム
-                    ItemStack hand = killerP.getItemInHand();
-                    String handItemName = hand.getType().toString();
-                    if ( hand.getType().equals(Material.AIR) ) {
-                        handItemName = "素手";
-                    }
+                // プレイヤー間攻撃
+                if (damager instanceof Player) {
                     deathMessage = getMessage("pvp");
-
-                    deathMessage = deathMessage.replace("%k", killerP.getName());
-                    deathMessage = deathMessage.replace("%i", handItemName);
                 }
                 // 飼われている狼
-                else if (killer instanceof Wolf && ((Wolf) killer).isTamed()){
+                else if (damager instanceof Wolf && ((Wolf) damager).isTamed()){
                     //  飼い主取得
-                    String tamer = ((Wolf)killer).getOwner().getName();
-
-                    deathMessage = getDeathMessageByMob("tamewolf", (Wolf)killer);
+                    String tamer = ((Wolf)damager).getOwner().getName();
+                    deathMessage = getDeathMessageByMob("tamewolf", (Wolf)damager);
                     deathMessage = deathMessage.replace("%o", tamer);
                 }
                 // 打たれた矢
-                else if (killer instanceof Arrow) {
-                    Arrow arrow = (Arrow)killer;
+                else if (damager instanceof Arrow) {
+                    Arrow arrow = (Arrow)damager;
                     LivingEntity shooter = arrow.getShooter();
                     if ( shooter instanceof Player ) {
-                        String killerName = ((Player)shooter).getName();
                         deathMessage = getMessage("arrow");
-                        deathMessage = deathMessage.replace("%k", killerName);
                     } else if ( shooter instanceof Skeleton ) {
                         deathMessage = getDeathMessageByMob("skeleton", (Skeleton)shooter);
                     } else {
@@ -175,21 +189,19 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
                     }
                 }
                 // エンダーパールのテレポート時のダメージ
-                else if (killer instanceof EnderPearl) {
+                else if (damager instanceof EnderPearl) {
                     deathMessage = getMessage("enderpearl");
                 }
                 // 投げたポーションや雪玉など
-                else if (killer instanceof Projectile) {
+                else if (damager instanceof Projectile) {
                     // 投げたプレイヤー取得
-                    LivingEntity shooter = ((Projectile)killer).getShooter();
+                    LivingEntity shooter = ((Projectile)damager).getShooter();
                     if ( shooter instanceof Player ) {
-                        String shooterName = ((Player)shooter).getName();
-                        if ( killer instanceof ThrownPotion ) {
+                        if ( damager instanceof ThrownPotion ) {
                             deathMessage = getMessage("potion");
                         } else {
                             deathMessage = getMessage("throw");
                         }
-                        deathMessage = deathMessage.replace("%k", shooterName);
                     } else if ( shooter instanceof Witch ) {
                         deathMessage = getDeathMessageByMob("witch", shooter);
                     }
@@ -197,29 +209,43 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
                 // そのほかのMOBは直接設定ファイルから取得
                 else {
                     // 直接 getMessage メソッドを呼ぶ
-                    if ( killer instanceof LivingEntity ) {
+                    if ( damager instanceof LivingEntity ) {
                         deathMessage = getDeathMessageByMob(
-                                killer.getType().getName().toLowerCase(),
-                                (LivingEntity)killer);
+                                damager.getType().getName().toLowerCase(),
+                                (LivingEntity)damager);
                     } else {
                         deathMessage = getMessage(
-                                killer.getType().getName().toLowerCase());
+                                damager.getType().getName().toLowerCase());
                     }
                 }
             }
             // エンティティ以外に倒されたメッセージは別に設定
             else {
-                if (cause.getCause() == DamageCause.FIRE_TICK) {
-                    deathMessage = getMessage("fire");
-                } else {
-                    deathMessage = getMessage(cause.getCause().toString().toLowerCase());
-                }
+                String suffix = (killer == null) ? "" : "_killer";
+                deathMessage = getMessage(damageEvent.getCause().toString().toLowerCase() + suffix);
             }
         }
 
         // %p を、死亡した人の名前で置き換えする
         deathMessage = deathMessage.replace("%p", deader.getName());
 
+        // %k を、killerで置き換える
+        if ( deathMessage.contains("%k") ) {
+            if ( killer != null )
+                deathMessage = deathMessage.replace("%k", killer.getName());
+            else
+                deathMessage = deathMessage.replace("%k", "");
+        }
+
+        // %i を、killerが持ってたアイテムで置き換える
+        if ( deathMessage.contains("%i") ) {
+            ItemStack hand = killer.getItemInHand();
+            String handItemName = hand.getType().toString();
+            if ( hand.getType().equals(Material.AIR) ) {
+                handItemName = "素手";
+            }
+            deathMessage = deathMessage.replace("%i", handItemName);
+        }
         // カラーコードを置き換える
         deathMessage = Utility.replaceColorCode(deathMessage);
 
@@ -267,45 +293,6 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
         // killコマンドを実行された場合は、DamageCause.SUICIDEを設定する
         Player player = event.getPlayer();
         player.setLastDamageCause(new EntityDamageEvent(player, DamageCause.SUICIDE, 100));
-    }
-
-    /**
-     * Jarファイル内から直接 messages.yml を読み込み、YamlConfigurationにして返すメソッド
-     * @return
-     */
-    private YamlConfiguration loadDefaultMessages() {
-
-        YamlConfiguration messages = new YamlConfiguration();
-        JarFile jarFile = null;
-        try {
-            jarFile = new JarFile(getFile());
-            ZipEntry zipEntry = jarFile.getEntry("messages.yml");
-            InputStream inputStream = jarFile.getInputStream(zipEntry);
-            BufferedReader reader =
-                    new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
-            String line;
-            while ( (line = reader.readLine()) != null ) {
-                if ( line.contains(":") && !line.startsWith("#") ) {
-                    String key = line.substring(0, line.indexOf(":")).trim();
-                    String value = line.substring(line.indexOf(":") + 1).trim();
-                    if ( value.startsWith("'") && value.endsWith("'") )
-                        value = value.substring(1, value.length()-1);
-                    messages.set(key, value);
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            if ( jarFile != null ) {
-                try {
-                    jarFile.close();
-                } catch (IOException e) {
-                    // do nothing.
-                }
-            }
-        }
-
-        return messages;
     }
 
     /**

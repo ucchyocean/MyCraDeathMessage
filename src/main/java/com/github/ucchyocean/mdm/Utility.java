@@ -17,6 +17,8 @@ import java.io.OutputStreamWriter;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 
+import org.bukkit.configuration.file.YamlConfiguration;
+
 /**
  * @author ucchy
  * ユーティリティクラス
@@ -108,6 +110,54 @@ public class Utility {
                 }
             }
         }
+    }
+
+    /**
+     * Jarファイル内から指定のyamlを直接読み込み、YamlConfigurationにして返すメソッド<br>
+     * 読み込みもとのファイルは、UTF-8 で保存する。
+     * @return
+     */
+    protected static YamlConfiguration loadYamlFromJar(File jarFile, String fileName) {
+
+        YamlConfiguration messages = new YamlConfiguration();
+        JarFile file = null;
+        InputStream inputStream = null;
+        try {
+            file = new JarFile(jarFile);
+            ZipEntry zipEntry = file.getEntry(fileName);
+            inputStream = file.getInputStream(zipEntry);
+            BufferedReader reader =
+                    new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
+            String line;
+            while ( (line = reader.readLine()) != null ) {
+                if ( line.contains(":") && !line.startsWith("#") ) {
+                    String key = line.substring(0, line.indexOf(":")).trim();
+                    String value = line.substring(line.indexOf(":") + 1).trim();
+                    if ( value.startsWith("'") && value.endsWith("'") )
+                        value = value.substring(1, value.length()-1);
+                    messages.set(key, value);
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if ( file != null ) {
+                try {
+                    file.close();
+                } catch (IOException e) {
+                    // do nothing.
+                }
+            }
+            if ( inputStream != null ) {
+                try {
+                    inputStream.close();
+                } catch (IOException e) {
+                    // do nothing.
+                }
+            }
+        }
+
+        return messages;
     }
 
     /**

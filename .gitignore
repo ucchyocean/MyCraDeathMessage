@@ -1,8 +1,5 @@
-/target/classes/*
-/target/maven-archiver/*
-/target/surefire/*
-/target/test-classes/*
 /lib/*
 /.settings/*
 /.classpath
 /.project
+/target
