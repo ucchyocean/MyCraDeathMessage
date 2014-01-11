@@ -203,7 +203,7 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
                             deathMessage = getMessage("throw");
                         }
                     } else if ( shooter instanceof Witch ) {
-                        deathMessage = getDeathMessageByMob("witch", shooter);
+                        deathMessage = getDeathMessageByMob("witch", (Witch)shooter);
                     }
                 }
                 // そのほかのMOBは直接設定ファイルから取得
@@ -211,17 +211,17 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
                     // 直接 getMessage メソッドを呼ぶ
                     if ( damager instanceof LivingEntity ) {
                         deathMessage = getDeathMessageByMob(
-                                damager.getType().getName().toLowerCase(),
+                                damager.getType().toString().toLowerCase(),
                                 (LivingEntity)damager);
                     } else {
                         deathMessage = getMessage(
-                                damager.getType().getName().toLowerCase());
+                                damager.getType().toString().toLowerCase());
                     }
                 }
             }
             // エンティティ以外に倒されたメッセージは別に設定
             else {
-                String suffix = (killer == null) ? "" : "_killer";
+                String suffix = (killer == null || damageEvent.getCause() == DamageCause.SUICIDE) ? "" : "_killer";
                 deathMessage = getMessage(damageEvent.getCause().toString().toLowerCase() + suffix);
             }
         }
@@ -292,7 +292,7 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
 
         // killコマンドを実行された場合は、DamageCause.SUICIDEを設定する
         Player player = event.getPlayer();
-        player.setLastDamageCause(new EntityDamageEvent(player, DamageCause.SUICIDE, 100));
+        player.setLastDamageCause(new EntityDamageEvent(player, DamageCause.SUICIDE, 100F));
     }
 
     /**
@@ -304,9 +304,13 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
     private String getDeathMessageByMob(String cause, LivingEntity le) {
 
         String deathMessage = getMessage(cause);
-        String mobName = le.getCustomName();
-        if ( mobName == null ) {
-            mobName = "";
+        
+        String mobName = "";
+        if ( le != null ) {
+            mobName = le.getCustomName();
+            if ( mobName == null ) {
+                mobName = "";
+            }
         }
 
         return deathMessage.replace("%n", mobName);
