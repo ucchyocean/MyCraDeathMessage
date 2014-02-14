@@ -1,27 +1,32 @@
 /*
  * @author     tsuttsu305, ucchy
  * @license    GPLv3
- * @copyright  Copyright ucchy 2013
+ * @copyright  Copyright tsuttsu305, ucchy 2013
  * このソースコードは、tsuttsu305氏のリポジトリからフォークさせていただきました。感謝。
  */
 package com.github.ucchyocean.mdm;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.util.jar.JarFile;
+import java.util.zip.ZipEntry;
 
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Arrow;
 import org.bukkit.entity.EnderPearl;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Projectile;
-import org.bukkit.entity.Skeleton;
-import org.bukkit.entity.ThrownPotion;
-import org.bukkit.entity.Witch;
 import org.bukkit.entity.Wolf;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -71,12 +76,12 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
 
         File file = new File(getDataFolder(), "config.yml");
         if ( !file.exists() ) {
-            Utility.copyFileFromJar(getFile(), file, "config.yml", false);
+            copyFileFromJar(getFile(), file, "config.yml", false);
         }
 
         file = new File(getDataFolder(), "messages.yml");
         if ( !file.exists() ) {
-            Utility.copyFileFromJar(getFile(), file, "messages.yml", false);
+            copyFileFromJar(getFile(), file, "messages.yml", false);
         }
 
         // 再読み込み処理
@@ -90,7 +95,7 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
         prefixWorld = config.getBoolean("prefixWorld", true);
 
         // メッセージのデフォルトを、Jarの中から読み込む
-        defaultMessages = Utility.loadYamlFromJar(getFile(), "messages.yml");
+        defaultMessages = loadYamlFromJar(getFile(), "messages.yml");
     }
 
     /**
@@ -98,11 +103,9 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
      * @param cause プレイヤー死亡理由
      * @return 理由に応じたメッセージ。
      */
-    public String getMessage(String cause) {
+    private String getMessage(String cause) {
 
-        String defaultMessage = defaultMessages.getString(
-                cause, "&e" + cause + "(%p_%k_%i_%o)");
-
+        String defaultMessage = defaultMessages.getString(cause);
         File file = new File(getDataFolder(), "messages.yml");
         YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
         return config.getString(cause, defaultMessage);
@@ -119,12 +122,16 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
         // 初参加なら、初参加メッセージを流す
         String message;
         if ( event.getPlayer().hasPlayedBefore() )
-            message = getMessage("server_join").replace("%p", event.getPlayer().getName());
+            message = getMessage("server_join");
         else
-            message = getMessage("server_join_first").replace("%p", event.getPlayer().getName());
+            message = getMessage("server_join_first");
 
-        event.setJoinMessage(Utility.replaceColorCode(message));
+        if ( message == null ) {
+            return;
+        }
 
+        message = replaceColorCode(message.replace("%p", event.getPlayer().getName()));
+        event.setJoinMessage(message);
     }
 
     /**
@@ -135,8 +142,14 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
     public void onPlayerQuit(PlayerQuitEvent event) {
 
         // メッセージを設定する
-        event.setQuitMessage(Utility.replaceColorCode(
-                getMessage("server_quit").replace("%p", event.getPlayer().getName())));
+        String message = getMessage("server_quit");
+
+        if ( message == null ) {
+            return;
+        }
+
+        message = replaceColorCode(message.replace("%p", event.getPlayer().getName()));
+        event.setQuitMessage(message);
     }
 
     /**
@@ -146,17 +159,19 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlayerDeath(PlayerDeathEvent event){
 
+        String ownerName = "";
+        String customName = "";
+        
         // プレイヤーとプレイヤーが最後に受けたダメージイベントを取得
         Player deader = event.getEntity();
         Player killer = deader.getKiller();
         final EntityDamageEvent damageEvent = deader.getLastDamageCause();
 
-        // 死亡メッセージ
-        String deathMessage = event.getDeathMessage();
+        String cause = null;
 
         // ダメージイベントを受けずに死んだ 死因不明
         if (damageEvent == null) {
-            deathMessage = getMessage("unknown"); // Unknown
+            cause = "unknown"; // Unknown
         }
         // ダメージイベントあり 原因によってメッセージ変更
         else {
@@ -167,65 +182,53 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
 
                 // プレイヤー間攻撃
                 if (damager instanceof Player) {
-                    deathMessage = getMessage("pvp");
+                    cause = "pvp";
                 }
                 // 飼われている狼
                 else if (damager instanceof Wolf && ((Wolf) damager).isTamed()){
                     //  飼い主取得
-                    String tamer = ((Wolf)damager).getOwner().getName();
-                    deathMessage = getDeathMessageByMob("tamewolf", (Wolf)damager);
-                    deathMessage = deathMessage.replace("%o", tamer);
-                }
-                // 打たれた矢
-                else if (damager instanceof Arrow) {
-                    Arrow arrow = (Arrow)damager;
-                    LivingEntity shooter = arrow.getShooter();
-                    if ( shooter instanceof Player ) {
-                        deathMessage = getMessage("arrow");
-                    } else if ( shooter instanceof Skeleton ) {
-                        deathMessage = getDeathMessageByMob("skeleton", (Skeleton)shooter);
-                    } else {
-                        deathMessage = getMessage("dispenser");
-                    }
+                    ownerName = ((Wolf)damager).getOwner().getName();
+                    customName = getCustomName((Wolf)damager);
+                    cause = "tamewolf";
                 }
                 // エンダーパールのテレポート時のダメージ
                 else if (damager instanceof EnderPearl) {
-                    deathMessage = getMessage("enderpearl");
-                }
-                // 投げたポーションや雪玉など
-                else if (damager instanceof Projectile) {
-                    // 投げたプレイヤー取得
-                    LivingEntity shooter = ((Projectile)damager).getShooter();
-                    if ( shooter instanceof Player ) {
-                        if ( damager instanceof ThrownPotion ) {
-                            deathMessage = getMessage("potion");
-                        } else {
-                            deathMessage = getMessage("throw");
-                        }
-                    } else if ( shooter instanceof Witch ) {
-                        deathMessage = getDeathMessageByMob("witch", (Witch)shooter);
-                    }
+                    cause = "enderpearl";
                 }
                 // そのほかのMOBは直接設定ファイルから取得
                 else {
                     // 直接 getMessage メソッドを呼ぶ
+                    cause = damager.getType().toString().toLowerCase();
                     if ( damager instanceof LivingEntity ) {
-                        deathMessage = getDeathMessageByMob(
-                                damager.getType().toString().toLowerCase(),
-                                (LivingEntity)damager);
-                    } else {
-                        deathMessage = getMessage(
-                                damager.getType().toString().toLowerCase());
+                        customName = getCustomName((LivingEntity)damager);
                     }
                 }
             }
             // エンティティ以外に倒されたメッセージは別に設定
             else {
-                String suffix = (killer == null || damageEvent.getCause() == DamageCause.SUICIDE) ? "" : "_killer";
-                deathMessage = getMessage(damageEvent.getCause().toString().toLowerCase() + suffix);
+                String suffix;
+                if (killer == null || damageEvent.getCause() == DamageCause.SUICIDE) {
+                    suffix = "";
+                } else {
+                    suffix = "_killer";
+                }
+                cause = damageEvent.getCause().toString().toLowerCase() + suffix;
             }
         }
 
+        // メッセージリソースが取得できなかった場合は何もしない
+        String deathMessage = getMessage(cause);
+        if ( deathMessage == null ) {
+            
+            if ( loggingDeathMessage ) {
+                // ロギング
+                getLogger().info(ChatColor.stripColor(event.getDeathMessage()));
+                getLogger().warning("死因メッセージリソース " + cause + " が見つかりません。");
+            }
+            
+            return;
+        }
+        
         // %p を、死亡した人の名前で置き換えする
         deathMessage = deathMessage.replace("%p", deader.getName());
 
@@ -251,9 +254,19 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
             }
         }
         
+        // %o を、狼のオーナー名で置き換えする
+        if ( deathMessage.contains("%o") ) {
+            deathMessage = deathMessage.replace("%o", ownerName);
+        }
+        
+        // %n を、ネームタグ設定名で置き換えする
+        if ( deathMessage.contains("%n") ) {
+            deathMessage = deathMessage.replace("%n", customName);
+        }
+        
         // カラーコードを置き換える
-        deathMessage = Utility.replaceColorCode(deathMessage);
-
+        deathMessage = replaceColorCode(deathMessage);
+        
         if ( prefixWorld ) {
             // ワールド名を頭につける
             World world = deader.getWorld();
@@ -300,24 +313,171 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
         player.setLastDamageCause(new EntityDamageEvent(player, DamageCause.SUICIDE, 100F));
     }
 
+    
     /**
-     * 指定したMOBに関連したデスメッセージを取得する
-     * @param cause
+     * 指定したMOBのネームタグ設定名を取得する
      * @param le
      * @return
      */
-    private String getDeathMessageByMob(String cause, LivingEntity le) {
-
-        String deathMessage = getMessage(cause);
+    private String getCustomName(LivingEntity le) {
         
-        String mobName = "";
-        if ( le != null ) {
-            mobName = le.getCustomName();
-            if ( mobName == null ) {
-                mobName = "";
+        if ( le == null ) {
+            return "";
+        }
+        
+        String name = le.getCustomName();
+        if ( name == null ) {
+            return "";
+        }
+        
+        return name;
+    }
+
+    /**
+     * jarファイルの中に格納されているファイルを、jarファイルの外にコピーするメソッド
+     * @param jarFile jarファイル
+     * @param targetFile コピー先
+     * @param sourceFilePath コピー元
+     * @param isBinary バイナリファイルかどうか
+     */
+    private void copyFileFromJar(
+            File jarFile, File targetFile, String sourceFilePath, boolean isBinary) {
+
+        InputStream is = null;
+        FileOutputStream fos = null;
+        BufferedReader reader = null;
+        BufferedWriter writer = null;
+
+        File parent = targetFile.getParentFile();
+        if ( !parent.exists() ) {
+            parent.mkdirs();
+        }
+
+        try {
+            JarFile jar = new JarFile(jarFile);
+            ZipEntry zipEntry = jar.getEntry(sourceFilePath);
+            is = jar.getInputStream(zipEntry);
+
+            fos = new FileOutputStream(targetFile);
+
+            if ( isBinary ) {
+                byte[] buf = new byte[8192];
+                int len;
+                while ( (len = is.read(buf)) != -1 ) {
+                    fos.write(buf, 0, len);
+                }
+                fos.flush();
+                fos.close();
+                is.close();
+
+            } else {
+                reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+                writer = new BufferedWriter(new OutputStreamWriter(fos));
+
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    writer.write(line);
+                    writer.newLine();
+                }
+
+            }
+
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if ( writer != null ) {
+                try {
+                    writer.flush();
+                    writer.close();
+                } catch (IOException e) {
+                    // do nothing.
+                }
+            }
+            if ( reader != null ) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    // do nothing.
+                }
+            }
+            if ( fos != null ) {
+                try {
+                    fos.flush();
+                    fos.close();
+                } catch (IOException e) {
+                    // do nothing.
+                }
+            }
+            if ( is != null ) {
+                try {
+                    is.close();
+                } catch (IOException e) {
+                    // do nothing.
+                }
+            }
+        }
+    }
+
+    /**
+     * Jarファイル内から指定のyamlを直接読み込み、YamlConfigurationにして返すメソッド<br>
+     * 読み込みもとのファイルは、UTF-8 で保存する。
+     * @return
+     */
+    private YamlConfiguration loadYamlFromJar(File jarFile, String fileName) {
+
+        YamlConfiguration messages = new YamlConfiguration();
+        JarFile file = null;
+        InputStream inputStream = null;
+        try {
+            file = new JarFile(jarFile);
+            ZipEntry zipEntry = file.getEntry(fileName);
+            inputStream = file.getInputStream(zipEntry);
+            BufferedReader reader =
+                    new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
+            String line;
+            while ( (line = reader.readLine()) != null ) {
+                if ( line.contains(":") && !line.startsWith("#") ) {
+                    String key = line.substring(0, line.indexOf(":")).trim();
+                    String value = line.substring(line.indexOf(":") + 1).trim();
+                    if ( value.startsWith("'") && value.endsWith("'") )
+                        value = value.substring(1, value.length()-1);
+                    messages.set(key, value);
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if ( file != null ) {
+                try {
+                    file.close();
+                } catch (IOException e) {
+                    // do nothing.
+                }
+            }
+            if ( inputStream != null ) {
+                try {
+                    inputStream.close();
+                } catch (IOException e) {
+                    // do nothing.
+                }
             }
         }
 
-        return deathMessage.replace("%n", mobName);
+        return messages;
+    }
+
+    /**
+     * 文字列内のカラーコードを置き換えする
+     * @param source 置き換え元の文字列
+     * @return 置き換え後の文字列
+     */
+    private String replaceColorCode(String source) {
+        
+        if ( source == null ) {
+            return null;
+        }
+        return ChatColor.translateAlternateColorCodes('&', source);
     }
 }

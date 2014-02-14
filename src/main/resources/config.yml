@@ -1,7 +1,7 @@
 # ${project.name} v${project.version}
 # @author     tsuttsu305, ucchy
 # @license    GPLv3
-# @copyright  Copyright ucchy 2013
+# @copyright  Copyright tsuttsu305, ucchy 2013
 
 # Output to server.log and console.
 loggingDeathMessage: true
