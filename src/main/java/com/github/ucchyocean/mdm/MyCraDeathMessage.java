@@ -239,13 +239,18 @@ public class MyCraDeathMessage extends JavaPlugin implements Listener {
 
         // %i を、killerが持ってたアイテムで置き換える
         if ( deathMessage.contains("%i") ) {
-            ItemStack hand = killer.getItemInHand();
-            String handItemName = hand.getType().toString();
-            if ( hand.getType().equals(Material.AIR) ) {
-                handItemName = "素手";
+            if ( killer != null ) {
+                ItemStack hand = killer.getItemInHand();
+                String handItemName = hand.getType().toString();
+                if ( hand.getType().equals(Material.AIR) ) {
+                    handItemName = "素手";
+                }
+                deathMessage = deathMessage.replace("%i", handItemName);
+            } else {
+                deathMessage = deathMessage.replace("%i", "");
             }
-            deathMessage = deathMessage.replace("%i", handItemName);
         }
+        
         // カラーコードを置き換える
         deathMessage = Utility.replaceColorCode(deathMessage);
 

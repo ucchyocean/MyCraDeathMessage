@@ -1,5 +1,10 @@
-#case: String
-#%p Player, %k Killer, %o Owner, %i Item, %n Name
+# ${project.name} v${project.version}
+# @author     tsuttsu305, ucchy
+# @license    GPLv3
+# @copyright  Copyright ucchy 2013
+# 
+# case: String
+# %p Player, %k Killer, %o Owner, %i Item, %n Name
 arrow: '&b%p&e は &b%k&e に矢で射抜かれた。'
 bat: '&b%p&e はコウモリ&b&o%n&r&eに殺された。'
 blaze: '&b%p&e はブレイズ&b&o%n&r&eに殺された。'
@@ -15,6 +20,7 @@ dispenser: '&b%p&e はディスペンサートラップにかかって死んだ�
 drowning: '&b%p&e は溺れた。'
 drowning_killer: '&b%p&e は&b%k&e に&b%i&e で突き飛ばされて溺れた。'
 enderdragon: '&b%p&e はエンダードラゴン&b&o%n&r&eに殺された。'
+ender_dragon: '&b%p&e はエンダードラゴン&b&o%n&r&eに殺された。'
 enderman: '&b%p&e はエンダーマン&b&o%n&r&eに殺された。'
 enderpearl: '&b%p&e はエンダーパールの呪いの力に飲み込まれた。'
 fall: '&b%p&e は高いところから落ちて骨折した。'
@@ -34,6 +40,7 @@ lavaslime: '&b%p&e はマグマキューブ&b&o%n&r&eに殺された。'
 lightning: '&b%p&e は神の怒りにふれた。'
 magic: '&b%p&e は魔法の力によって死んだ。'
 pigzombie: '&b%p&e はゾンビピッグマン&b&o%n&r&eに殺された。'
+pig_zombie: '&b%p&e はゾンビピッグマン&b&o%n&r&eに殺された。'
 poison: '&b%p&e は毒で死んだ。'
 potion: '&b%p&e は&b%k&e が投げたポーションをかぶって溶けた。'
 primedtnt: '&b%p&e はTNTで爆死した。'
